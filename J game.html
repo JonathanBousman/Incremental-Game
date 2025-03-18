@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <!-- Viewport meta ensures mobile devices scale the page correctly -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Incremental Game (Mobile-Friendly)</title>
+    <style>
+        /* Reset & Body Styling */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            color: #111827;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: start;
+            /* Padding around edges helps on mobile */
+            min-height: 100vh;
+            padding: 10px;
+        }
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: #1f2937;
+            text-align: center;
+        }
+        .card {
+            background-color: #ffffff;
+            border-radius: 0.75rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 15px;
+            margin-bottom: 15px;
+            width: 100%;
+            max-width: 600px;
+        }
+        button {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            /* Mobile-friendly: slightly bigger tap area */
+        }
+        button:hover {
+            background-color: #1e40af;
+        }
+        .resource-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin: 8px 0;
+            flex-wrap: wrap; /* so if not enough space, items wrap on smaller screens */
+        }
+        /* Tabs styling */
+        .tabs-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .tab-button {
+            background-color: #e5e7eb;
+            color: #111827;
+            padding: 8px 14px;
+            border-radius: 0.5rem;
+            border: none;
+            cursor: pointer;
+            display: inline-block;
+        }
+        .tab-button.active {
+            background-color: #2563eb;
+            color: white;
+        }
+        .tab-button.hidden {
+            display: none;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        /* Combat Log Styling */
+        .combat-log-container {
+            width: 280px;
+            height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+            padding: 10px;
+            position: absolute;
+            right: 10px;
+            top: 180px;
+            background-color: #ffffff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-radius: 0.5rem;
+            display: none; /* default hidden */
+        }
+        .health-bar {
+            width: 100%;
+            max-width: 300px;
+            height: 20px;
+            background: #e5e7eb;
+            position: relative;
+            margin-bottom: 10px;
+            border-radius: 0.25rem;
+            overflow: hidden;
+        }
+        .health-fill {
+            height: 100%;
+            background: #ef4444;
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+        .health-text {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            font-weight: 700;
+            color: #ffffff;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+
+    <script>
+    // Tab switching function
+    function switchTab(tabId, buttonElem) {
+        const allTabs = document.querySelectorAll('.tab-content');
+        allTabs.forEach(tab => tab.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+
+        const allButtons = document.querySelectorAll('.tab-button');
+        allButtons.forEach(btn => btn.classList.remove('active'));
+        buttonElem.classList.add('active');
+    }
+    </script>
+</head>
+<body>
+    <h1>Incremental Game (Mobile-Friendly)</h1>
+
+    <!-- Resources -->
+    <div class="card">
+        <h2>Resources</h2>
+        <div class="resource-container">
+            <button onclick="collectResource()">Gather Food</button>
+            <span>Food: <span id="food">0</span> (<span id="foodRate">0</span> food/min)</span>
+        </div>
+        <div class="resource-container">
+            <button onclick="createHuman()">Create Human (Cost: <span id="humanCost">100 food</span>)</button>
+            <span>Humans: <span id="humans">0</span></span>
+        </div>
+        <div id="humansVisual" style="margin:10px 0; font-size:1.2rem;"></div>
+    </div>
+
+    <!-- Upgrades -->
+    <div id="upgradesCard" class="card hidden" style="display:none;">
+        <h2>Upgrades</h2>
+        <div class="tabs-container">
+            <button class="tab-button active" onclick="switchTab('regularUpgradesTab', this)">Upgrades</button>
+            <button id="prestigeTabButton" class="tab-button hidden" onclick="switchTab('prestigeUpgradesTab', this)">Prestige Upgrades</button>
+        </div>
+        <div id="regularUpgradesTab" class="tab-content active">
+            <h3>Increase Collection Rate <span style="font-size:0.9rem;">(Owned: <span id="rateUpgradesOwned">0</span>)</span></h3>
+            <button onclick="buyRateUpgrade()">Increase Food Collection (Cost: <span id="foodRateCost">20 food</span>)</button>
+
+            <div id="prestige1Container" style="display: none; margin-top: 20px;">
+                <h3>Prestige 1</h3>
+                <button onclick="buyPrestige1()">Reset Game for Prestige 1</button>
+            </div>
+        </div>
+        <div id="prestigeUpgradesTab" class="tab-content hidden">
+            <h3>Buy Bots <span style="font-size:0.9rem;">(Owned: <span id="botsOwned">0</span>)</span></h3>
+            <button onclick="buyAutoUpgrade()">Food Bot (Cost: <span id="foodAutoCost">100 humans</span>)</button>
+
+            <h3>Human Double-Click <span style="font-size:0.9rem;">(Purchased: <span id="doubleClickPurchased">No</span>)</span></h3>
+            <button onclick="buyDoubleClick()">Human Double-Click (Cost: 200 humans)</button>
+        </div>
+    </div>
+
+    <!-- Combat Section -->
+    <div id="combatCard" class="card hidden">
+        <h2>Combat</h2>
+        <div class="resource-container">
+            <button onclick="startCombat()">Begin Combat</button>
+            <button onclick="toggleCombatLog()">Toggle Combat Log</button>
+        </div>
+        <div>
+            <p>Current Enemy: <span id="enemyCount">1</span></p>
+            <div class="health-bar">
+                <div class="health-fill" id="enemyHealthBar"></div>
+                <span class="health-text" id="enemyHealthText">0 / 0</span>
+            </div>
+            <p>Enemy HP: <span id="enemyHP">0</span></p>
+        </div>
+    </div>
+
+    <!-- Combat Log -->
+    <div class="combat-log-container" id="combatLogContainer">
+        <h3>Combat Log</h3>
+        <div id="combatLog"></div>
+    </div>
+
+    <!-- Admin Controls -->
+    <div class="card">
+        <h2>Admin Controls (For Testing)</h2>
+        <div class="resource-container">
+            <button onclick="addTestResources()">Add 100,000 Food</button>
+            <button onclick="addTestHumans()">Add 10,000 Humans</button>
+        </div>
+    </div>
+
+    <script>
+        /****************************************
+         *            GLOBAL VARIABLES          *
+         ****************************************/
+        let food = 0;
+        let foodPerClick = 1;
+        let foodPerSecond = 0;
+        let rateUpgradeCost = 20;
+        let humans = 0;
+        let humanCost = 100;
+
+        let rateUpgradesOwned = 0;
+        let botsOwned = 0;
+        let prestigeUnlocked = false;
+
+        // If these are purchased, we keep them across resets
+        let foodBotUnlocked = false;
+        let humanDoubleClickPurchased = false;
+        let humanClickAmount = 1;
+
+        // COMBAT
+        let combatActive = false;
+        let enemyHP = 0;
+        let baseEnemyHP = 20;
+        let maxEnemyHP = 20;
+        let enemyCount = 1;
+        let combatLog = [];
+
+        /***************************************
+         *       RESOURCE & UPGRADE LOGIC      *
+         ***************************************/
+        function collectResource() {
+            food += foodPerClick;
+            updateDisplay();
+        }
+
+        function buyRateUpgrade() {
+            if (food >= rateUpgradeCost) {
+                food -= rateUpgradeCost;
+                foodPerClick *= 2;
+                foodPerSecond *= 2;
+                rateUpgradeCost = Math.floor(rateUpgradeCost * 1.5);
+                rateUpgradesOwned++;
+                updateDisplay();
+            }
+        }
+
+        // Food Bot now costs 100 humans, but also resets the game on purchase
+        function buyAutoUpgrade() {
+            if (!foodBotUnlocked && humans >= 100) {
+                humans -= 100;
+                foodBotUnlocked = true;  // permanently unlocked
+                // Reset the game to beginning, but keep the effect
+                resetForPrestigeUpgrades();
+                // Then we apply the bot effect
+                foodPerSecond += foodPerClick;
+                botsOwned++;
+                updateDisplay();
+            }
+        }
+
+        // Human Double-Click costs 200 humans, also resets game on purchase
+        function buyDoubleClick() {
+            if (!humanDoubleClickPurchased && humans >= 200) {
+                humans -= 200;
+                humanDoubleClickPurchased = true;
+                resetForPrestigeUpgrades();
+                // Now set double-click
+                humanClickAmount = 2;
+                const doubleClickPurchasedSpan = document.getElementById('doubleClickPurchased');
+                if (doubleClickPurchasedSpan) doubleClickPurchasedSpan.textContent = 'Yes';
+
+                // Update the createHuman button label
+                const createBtn = document.querySelector("button[onclick='createHuman()']");
+                if (createBtn) {
+                    createBtn.innerHTML = `Create 2 Humans (Cost: <span id="humanCost">100 food</span>)`;
+                }
+                updateDisplay();
+            }
+        }
+
+        function createHuman() {
+            if (food >= humanCost) {
+                food -= humanCost;
+                humans += humanClickAmount;
+                updateDisplay();
+            }
+        }
+
+        // Called when Food Bot or Double-Click is purchased,
+        // and also from buyPrestige1().
+        function resetForPrestigeUpgrades() {
+            // Keep permanent flags, but zero out other states
+            food = 0;
+            foodPerClick = 1;
+            foodPerSecond = 0;
+            rateUpgradeCost = 20;
+
+            // Start humans at 1
+            humans = 1;
+            enemyCount = 1;
+            baseEnemyHP = 20;
+            maxEnemyHP = 20;
+            combatActive = false;
+            combatLog = [];
+            rateUpgradesOwned = 0;
+            // keep foodBotUnlocked, humanDoubleClickPurchased, etc.
+
+            // Hide combat again
+            const combatCard = document.getElementById('combatCard');
+            if (combatCard) {
+                combatCard.classList.add('hidden');
+                combatCard.style.display = 'none';
+            }
+            // Clear combat UI
+            const enemyHPSpan = document.getElementById('enemyHP');
+            if (enemyHPSpan) enemyHPSpan.textContent = '0';
+            const enemyHealthBar = document.getElementById('enemyHealthBar');
+            if (enemyHealthBar) enemyHealthBar.style.width = '0%';
+            const enemyHealthText = document.getElementById('enemyHealthText');
+            if (enemyHealthText) enemyHealthText.textContent = '0 / 0';
+            const enemyCountSpan = document.getElementById('enemyCount');
+            if (enemyCountSpan) enemyCountSpan.textContent = '1';
+
+            // Clear log
+            const logDiv = document.getElementById('combatLog');
+            if (logDiv) {
+                logDiv.innerHTML = '';
+            }
+        }
+
+        /***************************************
+         *             ADMIN TOOLS             *
+         ***************************************/
+        function addTestResources() {
+            food += 100000;
+            updateDisplay();
+        }
+        function addTestHumans() {
+            humans += 10000;
+            updateDisplay();
+        }
+
+        /***************************************
+         *           PRESTIGE LOGIC            *
+         ***************************************/
+        function checkPrestige1Unlock() {
+            const prestige1Container = document.getElementById('prestige1Container');
+            const prestigeTabButton = document.getElementById('prestigeTabButton');
+            if (!prestige1Container || !prestigeTabButton) return;
+
+            if (!prestigeUnlocked && enemyCount >= 20) {
+                // Show the Prestige 1 button
+                prestige1Container.style.display = 'block';
+            } else if (prestigeUnlocked) {
+                // Hide the Prestige 1 button, show Prestige tab
+                prestige1Container.style.display = 'none';
+                prestigeTabButton.classList.remove('hidden');
+            }
+        }
+
+        function buyPrestige1() {
+            prestigeUnlocked = true;
+            // Keep permanent upgrades, but reset state
+            resetForPrestigeUpgrades();
+            // Show the Prestige Tab
+            const prestigeTabButton = document.getElementById('prestigeTabButton');
+            if (prestigeTabButton) {
+                prestigeTabButton.classList.remove('hidden');
+            }
+            updateDisplay();
+        }
+
+        /***************************************
+         *            COMBAT LOGIC             *
+         ***************************************/
+        function startCombat() {
+            combatActive = true;
+            enemyHP = baseEnemyHP;
+            maxEnemyHP = baseEnemyHP;
+            document.getElementById('enemyCount').textContent = enemyCount;
+            updateDisplay();
+            combatLoop();
+        }
+
+        function combatLoop() {
+            if (!combatActive) return;
+
+            if (enemyHP > 0 && humans > 0) {
+                enemyHP -= humans;
+                if (enemyHP < 0) enemyHP = 0;
+                logCombat(`Humans deal ${humans} damage! Enemy HP: ${enemyHP}`);
+                updateDisplay();
+                setTimeout(combatLoop, 1000);
+            } else if (enemyHP === 0 && humans > 0) {
+                logCombat('Enemy defeated! Next enemy appears!');
+                baseEnemyHP = Math.floor(baseEnemyHP * 1.5);
+                enemyCount++;
+                startCombat();
+            } else {
+                combatActive = false;
+                logCombat('All humans defeated. Retreating...');
+            }
+        }
+
+        function toggleCombatLog() {
+            const logContainer = document.getElementById('combatLogContainer');
+            if (!logContainer) return;
+            logContainer.style.display =
+              (logContainer.style.display === 'none' || logContainer.style.display === '')
+                ? 'block'
+                : 'none';
+        }
+
+        function logCombat(message) {
+            combatLog.push(message);
+            if (combatLog.length > 8) {
+                combatLog.shift();
+            }
+            const logDiv = document.getElementById('combatLog');
+            if (!logDiv) return;
+            logDiv.innerHTML = combatLog.map(msg => `<p>${msg}</p>`).join('');
+        }
+
+        /***************************************
+         *         DISPLAY & UPDATES           *
+         ***************************************/
+        function updateDisplay() {
+            // Re-apply permanent upgrades if purchased
+            if (humanDoubleClickPurchased) {
+                const doubleClickPurchasedSpan = document.getElementById('doubleClickPurchased');
+                if (doubleClickPurchasedSpan) doubleClickPurchasedSpan.textContent = 'Yes';
+                const createBtn = document.querySelector("button[onclick='createHuman()']");
+                if (createBtn) {
+                    createBtn.innerHTML = `Create 2 Humans (Cost: <span id="humanCost">100 food</span>)`;
+                }
+            }
+
+            // FOOD & RATE
+            document.getElementById('food').textContent = food;
+            let netRate = foodPerSecond - humans;
+            let netRatePerMinute = netRate * 60;
+            const foodRateElem = document.getElementById('foodRate');
+            if (foodRateElem) {
+                foodRateElem.textContent = netRatePerMinute.toFixed(2);
+                foodRateElem.style.color = (netRatePerMinute < 0) ? '#dc2626' : 'inherit';
+            }
+
+            // HUMANS
+            document.getElementById('humans').textContent = humans;
+            document.getElementById('humanCost').textContent = humanCost + ' food';
+
+            // Show a fun representation of humans
+            updateHumansVisual();
+
+            // Show/hide Upgrades if humans >= 1
+            const upgradesCard = document.getElementById('upgradesCard');
+            if (humans >= 1 && upgradesCard) {
+                upgradesCard.classList.remove('hidden');
+                upgradesCard.style.display = 'block';
+            } else if (upgradesCard) {
+                upgradesCard.classList.add('hidden');
+                upgradesCard.style.display = 'none';
+            }
+
+            // Show/hide Combat if humans >= 5
+            const combatCard = document.getElementById('combatCard');
+            if (humans >= 5 && combatCard) {
+                combatCard.classList.remove('hidden');
+                combatCard.style.display = 'block';
+            } else if (combatCard) {
+                combatCard.classList.add('hidden');
+                combatCard.style.display = 'none';
+            }
+
+            // UPGRADE COSTS
+            const frCost = document.getElementById('foodRateCost');
+            if (frCost) frCost.textContent = rateUpgradeCost + ' food';
+            const faCost = document.getElementById('foodAutoCost');
+            if (faCost) faCost.textContent = '100 humans';
+
+            const rateOwned = document.getElementById('rateUpgradesOwned');
+            if (rateOwned) rateOwned.textContent = rateUpgradesOwned;
+            const botsOwnedSpan = document.getElementById('botsOwned');
+            if (botsOwnedSpan) botsOwnedSpan.textContent = botsOwned;
+
+            // Combat
+            const enemyHPSpan = document.getElementById('enemyHP');
+            if (enemyHPSpan) enemyHPSpan.textContent = enemyHP;
+
+            const enemyHealthBar = document.getElementById('enemyHealthBar');
+            const enemyHealthText = document.getElementById('enemyHealthText');
+            if (enemyHealthBar && enemyHealthText) {
+                enemyHealthBar.style.width = (enemyHP / maxEnemyHP * 100) + '%';
+                enemyHealthText.textContent = `${enemyHP} / ${maxEnemyHP}`;
+            }
+
+            // Check if we should show Prestige 1
+            checkPrestige1Unlock();
+        }
+
+        function updateHumansVisual() {
+            const humansVisual = document.getElementById('humansVisual');
+            if (!humansVisual) return;
+
+            humansVisual.innerHTML = '';
+
+            if (humans <= 100) {
+                let iconsCount = Math.floor(humans / 10);
+                for (let i = 0; i < iconsCount; i++) {
+                    humansVisual.innerHTML += '👨';
+                }
+            } else {
+                humansVisual.innerHTML = `👨 x ~${humans}`;
+            }
+        }
+
+        function feedHumans() {
+            if (humans > 0) {
+                const totalConsumption = humans;
+                if (food >= totalConsumption) {
+                    food -= totalConsumption;
+                } else {
+                    let deficit = totalConsumption - food;
+                    food = 0;
+                    if (deficit > 0) {
+                        let humansKilled = Math.min(deficit, humans);
+                        humans -= humansKilled;
+                        logCombat(\`\${humansKilled} humans starved!\`);
+                    }
+                }
+                updateDisplay();
+            }
+        }
+
+        // Interval for passive production and updates
+        setInterval(() => {
+            food += foodPerSecond;
+            feedHumans();
+            updateDisplay();
+        }, 1000);
+
+        // Initial sync
+        updateDisplay();
+    </script>
+</body>
+</html>
